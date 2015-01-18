@@ -16,10 +16,12 @@ TARGET_DIR = os.path.join(CURRENT_DIR, 'target')
 ERRORS = {
     'NO_TILES': 'No tile images in db.',
     'NO_TILES_DIR': 'Missing tiles directory:%s.' %TILES_DIR,
+    'NO_TILES_DB_FILE': 'Missing tiles file:%s.' %DB_FILE,
     'NO_SOURCE_DIR': 'Missing source directory:%s.' %SOURCE_DIR,
     'NO_TARGET_DIR': 'Missing target directory:%s.' %TARGET_DIR,
     'NO_SOURCE_PHOTOS': 'No photos to process in:%s.' %SOURCE_DIR,
 }
+REGEN_TILES_DB = True
 
 
 def check_environment(errors, tiles_dir, source_dir, target_dir):
@@ -34,13 +36,10 @@ def check_environment(errors, tiles_dir, source_dir, target_dir):
         errors.append(ERRORS.get('NO_TARGET_DIR'))
     return errors
 
+
 def setup_tile_db(errors, db_file):
-    if os.path.isfile(DB_FILE):
-        db_file = open(DB_FILE, 'r')
-        tiles_db = pickle.load(db_file)
-        if len(tiles_db) < 1:
-            errors.append(ERRORS.get('NO_TILES'))
-    else:
+    tiles_db = None
+    if REGEN_TILES_DB:
         tiles = glob.glob(os.path.join(TILES_DIR, '*.png'))
         if tiles:
             tiles_db = [
@@ -49,9 +48,18 @@ def setup_tile_db(errors, db_file):
             ]
             db_file = open(DB_FILE, 'wb')
             pickle.dump(tiles_db, db_file)
+            db_file.close()
         else:
             errors.append(ERRORS.get('NO_TILES'))
-    db_file.close()
+    else:
+        if os.path.isfile(DB_FILE):
+            db_file = open(DB_FILE, 'rb')
+            tiles_db = pickle.load(db_file)
+            if len(tiles_db) < 1:
+                errors.append(ERRORS.get('NO_TILES'))
+            db_file.close()
+        else:
+            errors.append(ERRORS.get('NO_TILES_DB_FILE'))
     return errors, tiles_db
 
 
@@ -85,7 +93,8 @@ if __name__ == '__main__':
     errors, tiles_db = setup_tile_db(errors, DB_FILE)
 
     # process the provided image 
-    errors = process_image(errors, tiles_db, SOURCE_DIR, TARGET_DIR)
+    if tiles_db:
+        errors = process_image(errors, tiles_db, SOURCE_DIR, TARGET_DIR)
 
     if errors:
         for error in errors:
