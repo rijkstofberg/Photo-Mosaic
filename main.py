@@ -37,35 +37,40 @@ def check_environment(errors, tiles_dir, source_dir, target_dir):
 def setup_tile_db(errors, db_file):
     if os.path.isfile(DB_FILE):
         db_file = open(DB_FILE, 'r')
-        db = pickle.load(db_file)
-        if len(db) < 1:
+        tiles_db = pickle.load(db_file)
+        if len(tiles_db) < 1:
             errors.append(ERRORS.get('NO_TILES'))
     else:
         tiles = glob.glob(os.path.join(TILES_DIR, '*.png'))
         if tiles:
-            db = [(tile, extract_meta.extractPhotoInfo(tile)) for tile in tiles]
+            tiles_db = [
+                (tile, extract_meta.extractPhotoInfo(tile)) \
+                 for tile in tiles
+            ]
             db_file = open(DB_FILE, 'wb')
-            pickle.dump(db, db_file)
+            pickle.dump(tiles_db, db_file)
         else:
             errors.append(ERRORS.get('NO_TILES'))
-    return errors
+    db_file.close()
+    return errors, tiles_db
 
 
-def process_image(errors, DB_FILE, SOURCE_DIR, TARGET_DIR):
+def process_image(errors, tiles_db, SOURCE_DIR, TARGET_DIR):
     photos = glob.glob(os.path.join(SOURCE_DIR, '*.png'))
     if not photos:
         errors.append(ERRORS.get('NO_SOURCE_PHOTOS'))
 
     for photo in photos:
+        pname = photo.split(os.sep)[-1]
         # create Cartesian result
-        result = mosaic.createMosaic(db, photo)
+        result = mosaic.createMosaic(tiles_db, photo)
         result.show()
-        file_name = os.join(TARGET_DIR, 'result-Cartesian')
+        file_name = os.path.join(TARGET_DIR, ('result-Cartesian-%s' %pname))
         result.save(file_name, 'PNG')
         # create hex result
-        result = mosaic.createMosaicHex(db, photo)
+        result = mosaic.createMosaicHex(tiles_db, photo)
         result.show()
-        file_name = os.path.join(TARGET_DIR, 'result-Hex')
+        file_name = os.path.join(TARGET_DIR, ('result-Hex-%s' %pname))
         result.save(file_name, 'PNG')
     return errors
 
@@ -77,10 +82,10 @@ if __name__ == '__main__':
     errors = check_environment(errors, TILES_DIR, SOURCE_DIR, TARGET_DIR)
 
     # setup DB with tile details
-    errors = setup_tile_db(errors, DB_FILE)
+    errors, tiles_db = setup_tile_db(errors, DB_FILE)
 
     # process the provided image 
-    errors = process_image(errors, DB_FILE, SOURCE_DIR, TARGET_DIR)
+    errors = process_image(errors, tiles_db, SOURCE_DIR, TARGET_DIR)
 
     if errors:
         for error in errors:
